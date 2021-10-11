@@ -89,7 +89,7 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < w; x++) {
 					UINT8 index = *(UINT8*)(ph + x + y * w);
-					RGBQuad* pix = &dib->quad[index];
+					RGBQuad* pix = &dib->quad[index]; // 读取一个像素
 					pDC->SetPixelV(
 						x,
 						h - y - 1,
@@ -105,6 +105,7 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < dib->bih->biWidth / 2; x++) {
 					UINT8 index = *(UINT8*)(ph + x + y * w);
+					// 将一个八位分成两部分读取，从高位向地位读取。
 					RGBQuad* pix0 = &dib->quad[(index & 0xf0) >> 4];
 					RGBQuad* pix1 = &dib->quad[index & 0x0f];
 					pDC->SetPixelV(
@@ -127,6 +128,7 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < dib->bih->biWidth / 8; x++) {
 					UINT8 index = *(UINT8*)(ph + x + w * y);
+					// 一个字节，从地位向高位读取，渲染的时候反过来渲染。
 					for (int k = 0; k < 8; k++) {
 						UINT8 bit = (index & (1 << k)) >> k; // 读取一个bit
 						RGBQuad* pix = &dib->quad[bit];
