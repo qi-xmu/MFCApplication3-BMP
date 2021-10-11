@@ -5,9 +5,18 @@ DIB::DIB() {
 	real_size = 0;
 	bwidth = 0;
 	bheight = 0;
+
+	bfh = NULL;
+	bih = NULL;
+	quad = NULL;
+	bdata = NULL;
 }
 DIB::~DIB() {
-
+	delete[] bdata;
+	bfh = NULL;
+	bih = NULL;
+	quad = NULL;
+	bdata = NULL;
 }
 
 void DIB::read(const CString& fileName)
