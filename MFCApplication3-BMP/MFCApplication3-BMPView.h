@@ -50,8 +50,6 @@ public:
 	afx_msg void OnFileOpen();
 	afx_msg void OnFileSaveAs();
 	afx_msg void OnFileSave();
-
-
 private:
 
 };

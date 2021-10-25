@@ -95,8 +95,20 @@ void DIB::equalizated()
 	}
 }
 
-void DIB::standardized()
+void DIB::standardized(DOUBLE* target)
 {
+	INT sEQU[256] = { 0 }; // 映射表
+	for (int i = 0; i < 256; i++) { // 寻找最佳映射
+		UINT8 index = 0;
+		DOUBLE min = fabs(target[i] - CDF[i]);
+		for (int j = 1; j < 256; j++) {
+			if (min > target[i]) { 
+				min = target[i];
+				index = i;
+			}
+		}
+		sEQU[i] = index; // 映射
+	}
 }
 
 void DIB::getExtVal(DOUBLE *arr)
@@ -112,7 +124,7 @@ void DIB::getExtVal(DOUBLE *arr)
 		}
 	}
 	// 归一化
-	int n = h * w;
+	int n = h * w; // 像素点数
 	for (int i = 0; i < 256; i++) {
 		arr[i] = (double)arr[i] / n;
 		if (0 == i) CDF[i] = arr[i];

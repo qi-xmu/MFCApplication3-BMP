@@ -109,62 +109,74 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 		break;
 	case 8: // 8位 256色
 		iw8 += 3;
-		iw8 -= iw8 % 4;
+		iw8 -= iw8 % 4; // window读取按照4字节读取，这里进行一个简单换算
 		// 原图绘制
 		dib->getExtVal(arr);
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
 				UINT8 index = *(UINT8*)(ph + x + y * iw8);
 				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
-				pDC->SetPixelV(
-					 x,
-					h - y - 1,
-					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
-				);
-				// 二值化
+				pDC->SetPixelV(x,h - y - 1,
+					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue));
+				// 原图二值化
 				if (2 * index > dib->maxp + dib->minp)
 					pDC->SetPixelV(start_x + 260*width + x, h - y - 1, RGB(255, 255, 255));
 				else
 					pDC->SetPixelV(start_x + 260 * width + x, h - y - 1, RGB(0, 0, 0));
-				
 			}
 		}
-		// 直方图
+		// DNOE: 原图直方图
 		for (int i = 0; i < 256; i++) {
 			pDC->FillSolidRect(
 				start_x+width * i, h - arr[i] * 3000, 
 				width, arr[i] * 3000 , RGB(255,0,0));
 		}
 		// 均衡化
-		dib->equalizated();
+		dib->equalizated(); //这里进行均衡化
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
 				UINT8 index = *(UINT8*)(ph + x + y * iw8);
-				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
+				RGBQuad* pix = &dib->quad[index]; //读取一个像素
 				pDC->SetPixelV(
 					x,
 					2 * h - y - 1,
 					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
 				);
-				// 二值化
+				// 均衡二值化
 				if (2 * index > dib->maxp + dib->minp)
 					pDC->SetPixelV(start_x + 260 * width + x, 2*h - y - 1, RGB(255, 255, 255));
 				else
 					pDC->SetPixelV(start_x + 260 * width + x, 2*h - y - 1, RGB(0, 0, 0));
 			}
 		}
+		// DONE: 均衡化直方图
 		dib->getExtVal(arr);
-		// 均衡化后直方图
 		for (int i = 0; i < 256; i++) {
 			pDC->FillSolidRect(
 				start_x + width * i, 2 * h - arr[i] * 3000,
 				width, arr[i] * 3000, RGB(0, 255, 0));
 		}
-		// 规格化
-
-		
-		
-
+		// DONE: 规格化
+		dib->standardized(dib->CDF); //这里进行规格化，需要传递一个标准。
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				UINT8 index = *(UINT8*)(ph + x + y * iw8);
+				RGBQuad* pix = &dib->quad[index]; //读取一个像素
+				pDC->SetPixelV(x,3 * h - y - 1,
+					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue));
+				// 规格化二值化
+				if (2 * index > dib->maxp + dib->minp)
+					pDC->SetPixelV(start_x + 260 * width + x, 3 * h - y - 1, RGB(255, 255, 255));
+				else
+					pDC->SetPixelV(start_x + 260 * width + x, 3 * h - y - 1, RGB(0, 0, 0));
+			}
+		}
+		dib->getExtVal(arr);
+		// 规格化后直方图
+		for (int i = 0; i < 256; i++) {
+			pDC->FillSolidRect(start_x + width * i, 2 * h - arr[i] * 3000,
+				width, arr[i] * 3000, RGB(0, 255, 0));
+		}
 		break;
 	case 4: // 4位 16色
 		w /= 2;
