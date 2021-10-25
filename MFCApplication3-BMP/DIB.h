@@ -42,11 +42,13 @@ public:
 	int real_size;	// 真实大小
 
 	BYTE* ph;	// 图片信息指针
-	INT* arr;	// 频率
-
+public:
 	UINT8 maxp; // 最大像素点值
 	UINT8 minp; // 最小像素点值
 	UINT8 threshold; // 阈值
+private:
+	INT* EQU;	// 均衡化映射
+	DOUBLE* CDF;	// 累计分布函数
 
 public:
 	DIB();	// 构造函数
@@ -56,7 +58,7 @@ public:
 	void write(const CString& fileName);	// 写入位图文件
 	void equalizated();	// 均衡化
 	void standardized();	// 规格化
-	void getExtVal();
+	void getExtVal(DOUBLE * arr);
 
 };
 

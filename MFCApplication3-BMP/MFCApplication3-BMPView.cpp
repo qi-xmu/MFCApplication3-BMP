@@ -76,16 +76,19 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	BYTE* ph = dib->ph;
 	UINT16 h = dib->bheight; //图片高度
 	UINT16 w = dib->bwidth;  //图片宽度
-	int* arr = dib->arr;
+	DOUBLE arr[256] = { 0.0 };
 
-	int start_x = w+20;
-	int height = h > 200 ? h : 200;
-	int width = 2;
+	int start_x = w+50;
+	int height = 240, width = 3;
 
 	// 绘制坐标系
-	pDC->MoveTo(start_x, height-200);
-	pDC->LineTo(start_x, height);
-	pDC->LineTo(start_x + width * 256, height);
+	pDC->MoveTo(start_x, 0);
+	pDC->LineTo(start_x, h);
+	pDC->LineTo(start_x + width * 256, h);
+
+	pDC->MoveTo(start_x, h);
+	pDC->LineTo(start_x, 2*h);
+	pDC->LineTo(start_x + width * 256, 2*h);
 
 	int iw24 = 3 * w;
 	int iw8 = w;
@@ -108,29 +111,59 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 		iw8 += 3;
 		iw8 -= iw8 % 4;
 		// 原图绘制
+		dib->getExtVal(arr);
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				UINT8 index = *(UINT8*)(ph + x + y * iw8);
+				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
+				pDC->SetPixelV(
+					 x,
+					h - y - 1,
+					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
+				);
+				// 二值化
+				if (2 * index > dib->maxp + dib->minp)
+					pDC->SetPixelV(start_x + 260*width + x, h - y - 1, RGB(255, 255, 255));
+				else
+					pDC->SetPixelV(start_x + 260 * width + x, h - y - 1, RGB(0, 0, 0));
+				
+			}
+		}
+		// 直方图
+		for (int i = 0; i < 256; i++) {
+			pDC->FillSolidRect(
+				start_x+width * i, h - arr[i] * 3000, 
+				width, arr[i] * 3000 , RGB(255,0,0));
+		}
+		// 均衡化
+		dib->equalizated();
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
 				UINT8 index = *(UINT8*)(ph + x + y * iw8);
 				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
 				pDC->SetPixelV(
 					x,
-					h - y - 1,
+					2 * h - y - 1,
 					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
 				);
 				// 二值化
 				if (2 * index > dib->maxp + dib->minp)
-					pDC->SetPixelV(x, 2 * h - y - 1, RGB(255, 255, 255));
+					pDC->SetPixelV(start_x + 260 * width + x, 2*h - y - 1, RGB(255, 255, 255));
 				else
-					pDC->SetPixelV(x, 2 * h - y - 1, RGB(0, 0, 0));
+					pDC->SetPixelV(start_x + 260 * width + x, 2*h - y - 1, RGB(0, 0, 0));
 			}
 		}
-		// 直方图
-		dib->getExtVal();
+		dib->getExtVal(arr);
+		// 均衡化后直方图
 		for (int i = 0; i < 256; i++) {
 			pDC->FillSolidRect(
-				start_x+width * i, height - arr[i], 
-				width, arr[i], RGB(255,0,0));
+				start_x + width * i, 2 * h - arr[i] * 3000,
+				width, arr[i] * 3000, RGB(0, 255, 0));
 		}
+		// 规格化
+
+		
+		
 
 		break;
 	case 4: // 4位 16色
