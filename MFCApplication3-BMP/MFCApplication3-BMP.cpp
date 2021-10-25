@@ -12,6 +12,8 @@
 #include "MFCApplication3-BMPDoc.h"
 #include "MFCApplication3-BMPView.h"
 
+#include "CImageZFTDlg.h"
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -21,6 +23,7 @@
 
 BEGIN_MESSAGE_MAP(BMPApp, CWinApp)
 	ON_COMMAND(ID_APP_ABOUT, &BMPApp::OnAppAbout)
+	ON_COMMAND(IDD_DIALOG_ZFT, &BMPApp::OnAppZFT)
 	// 基于文件的标准文档命令
 	ON_COMMAND(ID_FILE_NEW, &CWinApp::OnFileNew)
 	ON_COMMAND(ID_FILE_OPEN, &CWinApp::OnFileOpen)
@@ -137,8 +140,6 @@ int BMPApp::ExitInstance()
 }
 
 // BMPApp 消息处理程序
-
-
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
 class CAboutDlg : public CDialogEx
@@ -157,6 +158,8 @@ protected:
 // 实现
 protected:
 	DECLARE_MESSAGE_MAP()
+public:
+
 };
 
 CAboutDlg::CAboutDlg() noexcept : CDialogEx(IDD_ABOUTBOX)
@@ -169,6 +172,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
+	ON_WM_ACTIVATE()
 END_MESSAGE_MAP()
 
 // 用于运行对话框的应用程序命令
@@ -179,6 +183,12 @@ void BMPApp::OnAppAbout()
 }
 
 // BMPApp 消息处理程序
+
+void BMPApp::OnAppZFT()
+{
+	CImageZFTDlg zftDlg;
+	zftDlg.DoModal();
+}
 
 
 

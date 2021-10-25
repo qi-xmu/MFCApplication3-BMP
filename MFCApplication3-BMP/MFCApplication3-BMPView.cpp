@@ -13,6 +13,8 @@
 #include "MFCApplication3-BMPDoc.h"
 #include "MFCApplication3-BMPView.h"
 
+
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -29,6 +31,7 @@ BEGIN_MESSAGE_MAP(CMFCApplication3BMPView, CView)
 	ON_COMMAND(ID_FILE_PRINT_PREVIEW, &CView::OnFilePrintPreview)
 	ON_COMMAND(ID_FILE_OPEN, &CMFCApplication3BMPView::OnFileOpen)
 	ON_COMMAND(ID_FILE_SAVE_AS, &CMFCApplication3BMPView::OnFileSaveAs)
+	ON_COMMAND(ID_FILE_SAVE, &CMFCApplication3BMPView::OnFileSave)
 END_MESSAGE_MAP()
 
 // CMFCApplication3BMPView 构造/析构
@@ -37,7 +40,6 @@ CMFCApplication3BMPView::CMFCApplication3BMPView() noexcept
 {
 	// TODO: 在此处添加构造代码
 	dib = NULL;
-
 }
 
 CMFCApplication3BMPView::~CMFCApplication3BMPView()
@@ -69,84 +71,85 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 		return;
 
 	// TODO: 在此处为本机数据添加绘制代码
-	if (dib != NULL) {
-		BYTE* ph = (BYTE*)(dib->bdata + dib->bfh->bfOffBits);
-		unsigned int h = dib->bih->biHeight;
-		unsigned int w = dib->bih->biWidth;
-		switch (dib->bih->biBitCount)
-		{
-		case 24: // 24位
-			for (int y = 0; y < h; y++) {
-				for (int x = 0; x < w; x++) {
-					// 指针指向一个色彩的头部
-					BYTE* pixel = (ph + 3 * x + 3 * y * w);
-					pDC->SetPixelV(x, h - y - 1,
-						RGB(pixel[2], pixel[1], pixel[0]));
-				}
+	if (dib == NULL) {
+		return;
+	}
+
+	BYTE* ph = (BYTE*)(dib->bdata + dib->bfh->bfOffBits);
+	unsigned int h = dib->bih->biHeight;
+	unsigned int w = dib->bih->biWidth;
+	switch (dib->bih->biBitCount)
+	{
+	case 24: // 24位
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				// 指针指向一个色彩的头部
+				BYTE* pixel = (ph + 3 * x + 3 * y * w);
+				pDC->SetPixelV(x, h - y - 1,
+					RGB(pixel[2], pixel[1], pixel[0]));
 			}
-			break;
-		case 8: // 8位 256色
-			for (int y = 0; y < h; y++) {
-				for (int x = 0; x < w; x++) {
-					UINT8 index = *(UINT8*)(ph + x + y * w);
-					RGBQuad* pix = &dib->quad[index]; // 读取一个像素
+		}
+		break;
+	case 8: // 8位 256色
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				UINT8 index = *(UINT8*)(ph + x + y * w);
+				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
+				pDC->SetPixelV(
+					x,
+					h - y - 1,
+					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
+				);
+			}
+		}
+		break;
+	case 4: // 4位 16色
+		w /= 2;
+		w = w + 3;
+		w = w - w % 4; // 转化成4的倍数
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < dib->bih->biWidth / 2; x++) {
+				UINT8 index = *(UINT8*)(ph + x + y * w);
+				// 将一个八位分成两部分读取，从高位向地位读取。
+				RGBQuad* pix0 = &dib->quad[(index & 0xf0) >> 4];
+				RGBQuad* pix1 = &dib->quad[index & 0x0f];
+				pDC->SetPixelV(
+					2 * x,
+					h - y - 1,
+					RGB(pix0->rgbRed, pix0->rgbGreen, pix0->rgbBlue)
+				);
+				pDC->SetPixelV(
+					2 * x + 1,
+					h - y - 1,
+					RGB(pix1->rgbRed, pix1->rgbGreen, pix1->rgbBlue)
+				);
+			}
+		}
+		break;
+	case 1: // 1位
+		w /= 8;
+		w = w + 3;
+		w = w - w % 4; // 转化成4的倍数
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < dib->bih->biWidth / 8; x++) {
+				UINT8 index = *(UINT8*)(ph + x + w * y);
+				// 一个字节，从地位向高位读取，渲染的时候反过来渲染。
+				for (int k = 0; k < 8; k++) {
+					UINT8 bit = (index & (1 << k)) >> k; // 读取一个bit
+					RGBQuad* pix = &dib->quad[bit];
 					pDC->SetPixelV(
-						x,
+						8 * x + 8 - k,
 						h - y - 1,
 						RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
 					);
 				}
 			}
-			break;
-		case 4: // 4位 16色
-			w /= 2;
-			w = w + 3;
-			w = w - w % 4; // 转化成4的倍数
-			for (int y = 0; y < h; y++) {
-				for (int x = 0; x < dib->bih->biWidth / 2; x++) {
-					UINT8 index = *(UINT8*)(ph + x + y * w);
-					// 将一个八位分成两部分读取，从高位向地位读取。
-					RGBQuad* pix0 = &dib->quad[(index & 0xf0) >> 4];
-					RGBQuad* pix1 = &dib->quad[index & 0x0f];
-					pDC->SetPixelV(
-						2 * x,
-						h - y - 1,
-						RGB(pix0->rgbRed, pix0->rgbGreen, pix0->rgbBlue)
-					);
-					pDC->SetPixelV(
-						2 * x + 1,
-						h - y - 1,
-						RGB(pix1->rgbRed, pix1->rgbGreen, pix1->rgbBlue)
-					);
-				}
-			}
-			break;
-		case 1: // 1位
-			w /= 8;
-			w = w + 3;
-			w = w - w % 4; // 转化成4的倍数
-			for (int y = 0; y < h; y++) {
-				for (int x = 0; x < dib->bih->biWidth / 8; x++) {
-					UINT8 index = *(UINT8*)(ph + x + w * y);
-					// 一个字节，从地位向高位读取，渲染的时候反过来渲染。
-					for (int k = 0; k < 8; k++) {
-						UINT8 bit = (index & (1 << k)) >> k; // 读取一个bit
-						RGBQuad* pix = &dib->quad[bit];
-						pDC->SetPixelV(
-							8 * x + 8 - k,
-							h - y - 1,
-							RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
-						);
-					}
-				}
-			}
-			break;
-		default:
-			break;
 		}
-
-
+		break;
+	default:
+		break;
 	}
+
 }
 
 
@@ -215,8 +218,23 @@ void CMFCApplication3BMPView::OnFileOpen()
 void CMFCApplication3BMPView::OnFileSaveAs()
 {
 	// TODO: 在此添加命令处理程序代码
-	if (dib == NULL)
+	if (dib == NULL) {
 		return;
+	}
+
+	CFileDialog dlg(FALSE, _T("bmp"), _T(".bmp"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("(*.bmp)|*.bmp||"));
+	if (dlg.DoModal() == IDOK) {
+		CString filename = dlg.GetPathName();
+		dib->write(filename);
+	}
+}
+
+void CMFCApplication3BMPView::OnFileSave()
+{
+	// TODO: 在此添加命令处理程序代码
+	if (dib == NULL) {
+		return;
+	}
 
 	CFileDialog dlg(FALSE, _T("bmp"), _T(".bmp"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("(*.bmp)|*.bmp||"));
 	if (dlg.DoModal() == IDOK) {

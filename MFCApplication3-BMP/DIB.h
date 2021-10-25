@@ -29,7 +29,7 @@ struct RGBQuad {
 	BYTE    rgbReserved;	// ±£Áô×Ö 1×Ö½Ú
 };
 
-
+// DIBÀà
 class DIB
 {
 public:

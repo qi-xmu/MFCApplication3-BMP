@@ -5,13 +5,12 @@
 #pragma once
 
 #include "DIB.h"
+#include "CImageZFTDlg.h"
 
 class CMFCApplication3BMPView : public CView
 {
 private:
 	DIB *dib;
-public:
-	unsigned char* pimage;
 
 
 protected: // 仅从序列化创建
@@ -50,6 +49,7 @@ protected:
 public:
 	afx_msg void OnFileOpen();
 	afx_msg void OnFileSaveAs();
+	afx_msg void OnFileSave();
 };
 
 #ifndef _DEBUG  // MFCApplication3-BMPView.cpp 中的调试版本
