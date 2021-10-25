@@ -50,6 +50,10 @@ public:
 	afx_msg void OnFileOpen();
 	afx_msg void OnFileSaveAs();
 	afx_msg void OnFileSave();
+
+
+private:
+
 };
 
 #ifndef _DEBUG  // MFCApplication3-BMPView.cpp 中的调试版本

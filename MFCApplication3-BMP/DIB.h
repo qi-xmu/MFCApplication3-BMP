@@ -23,10 +23,10 @@ struct BMPInfoHeader {
 };
 
 struct RGBQuad {
-	BYTE    rgbBlue;		// 蓝色 1字节
-	BYTE    rgbGreen;		//绿色 1字节
-	BYTE    rgbRed;			// 红色 1字节
-	BYTE    rgbReserved;	// 保留字 1字节
+	BYTE rgbBlue;		// 蓝色 1字节
+	BYTE rgbGreen;		// 绿色 1字节
+	BYTE rgbRed;		// 红色 1字节
+	BYTE rgbReserved;	// 保留字 1字节
 };
 
 // DIB类
@@ -36,10 +36,17 @@ public:
 	BMPFileHeader* bfh;		// 文件头
 	BMPInfoHeader* bih;		// 信息头
 	RGBQuad* quad;			// 调色板
-	unsigned char *bdata;	// 标记
+	BYTE *bdata;	// 标记
 	int bwidth;		// 宽
 	int bheight;	// 高
 	int real_size;	// 真实大小
+
+	BYTE* ph;	// 图片信息指针
+	INT* arr;	// 频率
+
+	UINT8 maxp; // 最大像素点值
+	UINT8 minp; // 最小像素点值
+	UINT8 threshold; // 阈值
 
 public:
 	DIB();	// 构造函数
@@ -47,5 +54,9 @@ public:
 
 	void read(const CString& fileName);		// 读取位图文件
 	void write(const CString& fileName);	// 写入位图文件
+	void equalizated();	// 均衡化
+	void standardized();	// 规格化
+	void getExtVal();
+
 };
 

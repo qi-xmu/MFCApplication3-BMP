@@ -48,9 +48,6 @@ CMFCApplication3BMPView::~CMFCApplication3BMPView()
 		delete dib;
 		dib = NULL;
 	}
-	//if (pimage != NULL) {
-	//	delete[] pimage;
-	//}
 }
 
 BOOL CMFCApplication3BMPView::PreCreateWindow(CREATESTRUCT& cs)
@@ -62,6 +59,7 @@ BOOL CMFCApplication3BMPView::PreCreateWindow(CREATESTRUCT& cs)
 }
 
 // CMFCApplication3BMPView 绘图
+
 
 void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 {
@@ -75,40 +73,72 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 		return;
 	}
 
-	BYTE* ph = (BYTE*)(dib->bdata + dib->bfh->bfOffBits);
-	unsigned int h = dib->bih->biHeight;
-	unsigned int w = dib->bih->biWidth;
+	BYTE* ph = dib->ph;
+	UINT16 h = dib->bheight; //图片高度
+	UINT16 w = dib->bwidth;  //图片宽度
+	int* arr = dib->arr;
+
+	int start_x = w+20;
+	int height = h > 200 ? h : 200;
+	int width = 2;
+
+	// 绘制坐标系
+	pDC->MoveTo(start_x, height-200);
+	pDC->LineTo(start_x, height);
+	pDC->LineTo(start_x + width * 256, height);
+
+	int iw24 = 3 * w;
+	int iw8 = w;
+
 	switch (dib->bih->biBitCount)
 	{
 	case 24: // 24位
+		iw24 = iw24 + 3;
+		iw24 -= iw24 % 4; // 换算
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
-				// 指针指向一个色彩的头部
-				BYTE* pixel = (ph + 3 * x + 3 * y * w);
+				// 指针指向一个色彩的头部*4
+				BYTE* pixel = (ph + 3 * x +  y * iw24);
 				pDC->SetPixelV(x, h - y - 1,
 					RGB(pixel[2], pixel[1], pixel[0]));
 			}
 		}
 		break;
 	case 8: // 8位 256色
+		iw8 += 3;
+		iw8 -= iw8 % 4;
+		// 原图绘制
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
-				UINT8 index = *(UINT8*)(ph + x + y * w);
+				UINT8 index = *(UINT8*)(ph + x + y * iw8);
 				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
 				pDC->SetPixelV(
 					x,
 					h - y - 1,
 					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
 				);
+				// 二值化
+				if (2 * index > dib->maxp + dib->minp)
+					pDC->SetPixelV(x, 2 * h - y - 1, RGB(255, 255, 255));
+				else
+					pDC->SetPixelV(x, 2 * h - y - 1, RGB(0, 0, 0));
 			}
 		}
+		// 直方图
+		dib->getExtVal();
+		for (int i = 0; i < 256; i++) {
+			pDC->FillSolidRect(
+				start_x+width * i, height - arr[i], 
+				width, arr[i], RGB(255,0,0));
+		}
+
 		break;
 	case 4: // 4位 16色
 		w /= 2;
 		w = w + 3;
-		w = w - w % 4; // 转化成4的倍数
+		w -= w % 4; // 转化成4的倍数
 		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < dib->bih->biWidth / 2; x++) {
+			for (int x = 0; x < dib->bwidth / 2; x++) {
 				UINT8 index = *(UINT8*)(ph + x + y * w);
 				// 将一个八位分成两部分读取，从高位向地位读取。
 				RGBQuad* pix0 = &dib->quad[(index & 0xf0) >> 4];
@@ -128,10 +158,10 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 		break;
 	case 1: // 1位
 		w /= 8;
-		w = w + 3;
-		w = w - w % 4; // 转化成4的倍数
+		w += 3;
+		w -= w % 4; // 转化成4的倍数
 		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < dib->bih->biWidth / 8; x++) {
+			for (int x = 0; x < dib->bwidth / 8; x++) {
 				UINT8 index = *(UINT8*)(ph + x + w * y);
 				// 一个字节，从地位向高位读取，渲染的时候反过来渲染。
 				for (int k = 0; k < 8; k++) {
@@ -242,3 +272,5 @@ void CMFCApplication3BMPView::OnFileSave()
 		dib->write(filename);
 	}
 }
+
+
