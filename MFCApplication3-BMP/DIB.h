@@ -1,4 +1,5 @@
 #pragma once
+
 #pragma pack(2) // 对齐
 struct BMPFileHeader {
 	UINT16 bfType;		 // 说明位图类型  2字节
@@ -28,6 +29,9 @@ struct RGBQuad {
 	BYTE rgbRed;		// 红色 1字节
 	BYTE rgbReserved;	// 保留字 1字节
 };
+
+
+
 
 // DIB类
 class DIB
@@ -59,6 +63,5 @@ public:
 	void equalizated();	// 均衡化
 	void standardized(DOUBLE * target);	// 规格化
 	void getExtVal(DOUBLE * arr);
-
 };
 

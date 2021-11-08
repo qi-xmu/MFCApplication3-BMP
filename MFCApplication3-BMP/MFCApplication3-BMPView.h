@@ -6,11 +6,22 @@
 
 #include "DIB.h"
 #include "CImageZFTDlg.h"
+#include "fftw3.h"
+#include <cmath>
 
 class CMFCApplication3BMPView : public CView
 {
 private:
 	DIB *dib;
+
+public:
+	// dft
+	void FDFT(unsigned char* channel, DIB::complex* output);
+	void FDFT(unsigned char* channel, DIB::complex* output), int limit);
+	void FIDFT(DIB::complex* input, unsigned cahr* channel);
+
+
+
 
 
 protected: // 仅从序列化创建
