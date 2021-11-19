@@ -32,8 +32,21 @@ BEGIN_MESSAGE_MAP(CMFCApplication3BMPView, CView)
 	ON_COMMAND(ID_FILE_SAVE, &CMFCApplication3BMPView::OnFileSave)
 END_MESSAGE_MAP()
 
-// CMFCApplication3BMPView 构造/析构
 
+
+// 显示 图像指针 图像宽度 图像长度 绘制位置x y
+void CMFCApplication3BMPView::printBmp_8(CDC* pDC, BYTE* p, int w, int h, int x , int y)
+{
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < w; j++) {
+			BYTE index = p[j + i * w];
+			//4 * w + x, h - y - 1,
+			pDC->SetPixelV(x + j, h + y - i - 1, RGB(index, index, index));
+		}
+	}
+}
+
+// CMFCApplication3BMPView 构造/析构
 CMFCApplication3BMPView::CMFCApplication3BMPView() noexcept
 {
 	// TODO: 在此处添加构造代码
@@ -70,92 +83,66 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	if (dib == NULL) {
 		return;
 	}
-	BYTE* ph = dib->ph;
-	UINT16 h = dib->bheight; //图片高度
-	UINT16 w = dib->bwidth;  //图片宽度
-	DOUBLE arr[256] = { 0.0 };
 
-	int start_x = w+50;
-	int height = 240, width = 3;
+	// 原图绘制
+	printBmp_8(pDC, dib->ph, dib->bwidth, dib->bheight, 10, 10);
 
-	int iw24 = 3 * w;
-	int iw8 = w;
+	// 输出傅里叶变换结果
+	int size = dib->bheight * dib->bwidth; // 图像大小
+	fftw_complex* in, * out;
+	in = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+	out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+	dib->FDFT(in, out);
+	// 这里需要进行fftshift才能正常显示最终的傅里叶图像,重新开辟一个区域进行
+	fftw_complex *out_shift = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
 
-	switch (dib->bih->biBitCount)
-	{
-	case 24: // 24位
-		iw24 = iw24 + 3;
-		iw24 -= iw24 % 4; // 换算
-		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < w; x++) {
-				// 指针指向一个色彩的头部*4
-				BYTE* pixel = (ph + 3 * x +  y * iw24);
-				pDC->SetPixelV(x, h - y - 1,
-					RGB(pixel[2], pixel[1], pixel[0]));
-			}
-		}
-		break;
-	case 8: // 8位 256色
-		iw8 += 3;
-		iw8 -= iw8 % 4; // window读取按照4字节读取，这里进行一个简单换算
-		// 原图绘制
-		dib->getExtVal(arr);
-		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < w; x++) {
-				UINT8 index = *(UINT8*)(ph + x + y * iw8);
-				RGBQuad* pix = &dib->quad[index]; // 读取一个像素
-				pDC->SetPixelV(x,h - y - 1,
-					RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue));
-			}
-		}
-		break;
-	case 4: // 4位 16色
-		w /= 2;
-		w = w + 3;
-		w -= w % 4; // 转化成4的倍数
-		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < dib->bwidth / 2; x++) {
-				UINT8 index = *(UINT8*)(ph + x + y * w);
-				// 将一个八位分成两部分读取，从高位向地位读取。
-				RGBQuad* pix0 = &dib->quad[(index & 0xf0) >> 4];
-				RGBQuad* pix1 = &dib->quad[index & 0x0f];
-				pDC->SetPixelV(
-					2 * x,
-					h - y - 1,
-					RGB(pix0->rgbRed, pix0->rgbGreen, pix0->rgbBlue)
-				);
-				pDC->SetPixelV(
-					2 * x + 1,
-					h - y - 1,
-					RGB(pix1->rgbRed, pix1->rgbGreen, pix1->rgbBlue)
-				);
-			}
-		}
-		break;
-	case 1: // 1位
-		w /= 8;
-		w += 3;
-		w -= w % 4; // 转化成4的倍数
-		for (int y = 0; y < h; y++) {
-			for (int x = 0; x < dib->bwidth / 8; x++) {
-				UINT8 index = *(UINT8*)(ph + x + w * y);
-				// 一个字节，从地位向高位读取，渲染的时候反过来渲染。
-				for (int k = 0; k < 8; k++) {
-					UINT8 bit = (index & (1 << k)) >> k; // 读取一个bit
-					RGBQuad* pix = &dib->quad[bit];
-					pDC->SetPixelV(
-						8 * x + 8 - k,
-						h - y - 1,
-						RGB(pix->rgbRed, pix->rgbGreen, pix->rgbBlue)
-					);
-				}
-			}
-		}
-		break;
-	default:
-		break;
+	dib->DFTShift(out, out_shift);
+	
+	// 这里转换成图像格式
+	BYTE* mag = (BYTE*)malloc(sizeof(BYTE) * size);
+	dib->Magnitude(out_shift, mag);
+	// 显示变换后的频谱图
+	printBmp_8(pDC, mag,
+		dib->bwidth, dib->bheight, 
+		20+dib->bwidth, 10);
+
+	// 这里进行傅里叶反变换
+	fftw_complex *rout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+	dib->FIDFT(out, rout);
+	BYTE* new_img = (BYTE*)malloc(sizeof(BYTE) * size);
+	// 显示重新变化生成的图像
+	for (int i = 0; i < size; i++) {
+		new_img[i] = rout[i][0] / size;
 	}
+	printBmp_8(pDC, new_img,
+		dib->bwidth, dib->bheight,
+		30 + 2*dib->bwidth, 10);
 
+	// 下面进行滤波， 这里按照矩形进行截取out_shift
+	dib->RectFilter(out_shift, dib->bwidth * 0.8, 1);
+	// 显示滤波效果
+	BYTE* fmag = (BYTE*)malloc(sizeof(BYTE) * size);
+	dib->Magnitude(out_shift, fmag);
+	printBmp_8(pDC, fmag,
+		dib->bwidth, dib->bheight,
+		40 + 3 * dib->bwidth, 10);
+
+	// 滤波后变换回来 fout
+	fftw_complex* fout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+	dib->DFTShift(out_shift, fout);
+
+	// 进行反变换rfout
+	fftw_complex* rfout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+	dib->FIDFT(fout, rfout);
+	// 重新生成图形fnew_img
+	BYTE* fnew_img = (BYTE*)malloc(sizeof(BYTE) * size);
+	for (int i = 0; i < size; i++) {
+		fnew_img[i] = rfout[i][0] / size;
+	}
+	// 显示重新变化生成的图像
+	printBmp_8(pDC, fnew_img,
+		dib->bwidth, dib->bheight,
+		50 + 4 * dib->bwidth, 10);
 }
 
 
@@ -201,13 +188,11 @@ CMFCApplication3BMPDoc* CMFCApplication3BMPView::GetDocument() const // 非调�
 
 // CMFCApplication3BMPView 消息处理程序
 
-
 void CMFCApplication3BMPView::OnFileOpen()
 {
 	// TODO: 在此添加命令处理程序代码
 	if (dib) {
 		delete dib;
-		dib = NULL;
 	}
 	CFileDialog dlg(TRUE);
 	if (dlg.DoModal() == IDOK) {
@@ -227,7 +212,6 @@ void CMFCApplication3BMPView::OnFileSaveAs()
 	if (dib == NULL) {
 		return;
 	}
-
 	CFileDialog dlg(FALSE, _T("bmp"), _T(".bmp"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("(*.bmp)|*.bmp||"));
 	if (dlg.DoModal() == IDOK) {
 		CString filename = dlg.GetPathName();

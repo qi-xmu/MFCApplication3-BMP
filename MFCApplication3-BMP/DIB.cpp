@@ -9,10 +9,6 @@ DIB::DIB() {
 	bheight = 0;
 	maxp = 0;
 	minp = 255;
-	threshold = 0;
-
-	EQU = new INT[256];
-	CDF = new DOUBLE[256];
 
 	ph = NULL;
 	bfh = NULL;
@@ -26,8 +22,6 @@ DIB::~DIB() {
 	bfh = NULL;
 	bih = NULL;
 
-	EQU = NULL;
-	CDF = NULL;
 
 	quad = NULL;
 	bdata = NULL;
@@ -40,10 +34,8 @@ void DIB::read(const CString& fileName)
 	file.Open(fileName, CFile::modeRead);
 	real_size = (DWORD)file.GetLength();
 	bdata = new unsigned char[real_size];
-
 	file.Read(bdata, real_size);
 	file.Close();
-
 	// 头信息
 	bfh = (BMPFileHeader*)bdata;
 	bih = (BMPInfoHeader*)(bdata + sizeof(BMPFileHeader));
@@ -52,7 +44,7 @@ void DIB::read(const CString& fileName)
 	quad = (RGBQuad*)(bdata + sizeof(BMPFileHeader) + sizeof(BMPInfoHeader));
 
 	//图片高度 宽度
-	bheight = bih->biHeight; 
+	bheight = bih->biHeight;
 	bwidth = bih->biWidth;
 
 	//图片指针
@@ -74,44 +66,8 @@ void DIB::write(const CString& fileName)
 	new_file.Close();
 }
 
-void DIB::equalizated()
-{
-	if (maxp == 0)
-		return;
-	for (int i = 0; i < 256; i++)
-	{
-		EQU[i] = (int)(255.0 * CDF[i] + 0.5);
-	}
-	int iw8 = bwidth;
-	iw8 += 3;
-	iw8 -= iw8 % 4;
-	for (int i = 0; i < bheight; i++)
-	{
-		for (int j = 0; j < bwidth; j++)
-		{
-			UINT8 index = ph[i * iw8 + j];
-			ph[i * iw8 + j] = EQU[index];
-		}
-	}
-}
-
-void DIB::standardized(DOUBLE* target)
-{
-	INT sEQU[256] = { 0 }; // 映射表
-	for (int i = 0; i < 256; i++) { // 寻找最佳映射
-		UINT8 index = 0;
-		DOUBLE min = fabs(target[i] - CDF[i]);
-		for (int j = 1; j < 256; j++) {
-			if (min > target[i]) { 
-				min = target[i];
-				index = i;
-			}
-		}
-		sEQU[i] = index; // 映射
-	}
-}
-
-void DIB::getExtVal(DOUBLE *arr)
+// 计算最大最小值
+void DIB::getExtVal()
 {
 	UINT16 h = bheight;
 	UINT16 w = bwidth;
@@ -120,14 +76,100 @@ void DIB::getExtVal(DOUBLE *arr)
 			UINT8 index = *(UINT8*)(ph + x + y * w);
 			if (index > maxp) maxp = index;
 			if (index < minp) minp = index;
-			arr[index]++;
 		}
 	}
-	// 归一化
-	int n = h * w; // 像素点数
-	for (int i = 0; i < 256; i++) {
-		arr[i] = (double)arr[i] / n;
-		if (0 == i) CDF[i] = arr[i];
-		else CDF[i] = CDF[i - 1] + arr[i]; //计算CDF;
+}
+
+
+// 离散傅里叶变换代码
+void DIB::FDFT(fftw_complex* in, fftw_complex* out)
+{
+	int size = bheight * bwidth;
+	//for (int i = 0; i < size; i++) {
+	//	in[i++][0] = (double)(UINT)ph[i++];
+	//}
+	int i = 0;
+	for (int y = 0; y < bheight; y++) {
+		for (int x = 0; x < bwidth; x++) {
+			BYTE index = ph[x + y * bwidth];
+			in[i++][0] = index;
+		}
+	}
+	fftw_plan p;
+	p = fftw_plan_dft_2d(bheight, bwidth, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+	fftw_execute(p);
+}
+
+void DIB::FIDFT(fftw_complex* rin, fftw_complex* rout)
+{
+	int size = bheight * bwidth;
+	fftw_plan p = fftw_plan_dft_2d(bheight, bwidth, rin, rout, FFTW_BACKWARD, FFTW_ESTIMATE);
+	fftw_execute(p);
+}
+
+// fft shift 
+void DIB::DFTShift(fftw_complex* out, fftw_complex* out_shift)
+{
+	int a = bheight >> 1;
+	int b = bwidth >> 1;
+	int x, y;
+	for (int i = 0; i < bheight; i++) {
+		for (int j = 0; j < bwidth; j++) {
+			if (i < bheight / 2) {
+				if (j < bwidth / 2)
+					//第一块 <-- 4
+					x = j + b, y = i + a;
+				else
+					//第二块 <-- 3
+					x = j - b, y = i + a;
+			}
+			else {
+				if (j < bwidth / 2)
+					//第三快 <-- 2
+					x = j + b, y = i - a;
+				else
+					//第四块 <-- 1
+					x = j - b, y = i - a;
+			}
+			memcpy(out_shift[j + i * bwidth], out[x + y * bwidth], sizeof(fftw_complex));
+		}
 	}
 }
+
+void DIB::Magnitude(fftw_complex* out, BYTE* mag)
+{
+	DOUBLE dmag;
+	for (int i = 0; i < bheight * bwidth; i++) {
+		dmag = sqrt(pow(out[i][0], 2) + pow(out[i][1], 2));
+		dmag = 20 * log(dmag);
+		if (dmag > 255) dmag = 255;
+		mag[i] = (BYTE)dmag;
+	}
+}
+
+void DIB::RectFilter(fftw_complex* out, int len, int flag)
+{
+	int wc = bwidth >> 1;
+	int hc = bheight >> 1;
+	int lc = len >> 1;
+	if (flag == 0) {
+		// 过滤高通
+		for (int i = hc - lc; i < hc + lc; i++) {
+			for (int j = wc - lc; j < wc + lc; j++) {
+				memset(out[j + i * bwidth], 0, sizeof(fftw_complex));
+			}
+		}
+	}
+	else {
+		// 反向过滤低通
+		for (int i = 0; i < bheight ; i++) {
+			for (int j = 0; j < bwidth; j++) {
+				if ((i > hc - lc) && (i < hc + lc) && (j > wc - lc) && (j < wc + lc)) continue;
+				memset(out[j + i * bwidth], 0, sizeof(fftw_complex));
+			}
+		}
+	}
+}
+
+
+

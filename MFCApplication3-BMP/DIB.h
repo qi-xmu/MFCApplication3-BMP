@@ -31,11 +31,12 @@ struct RGBQuad {
 };
 
 
-
+#include <fftw3.h>
 
 // DIB类
 class DIB
 {
+// 位图显示
 public:
 	BMPFileHeader* bfh;		// 文件头
 	BMPInfoHeader* bih;		// 信息头
@@ -43,25 +44,31 @@ public:
 	BYTE *bdata;	// 标记
 	int bwidth;		// 宽
 	int bheight;	// 高
-	int real_size;	// 真实大小
+	int real_size;	// 真实大小 
 
 	BYTE* ph;	// 图片信息指针
-public:
-	UINT8 maxp; // 最大像素点值
-	UINT8 minp; // 最小像素点值
-	UINT8 threshold; // 阈值
-	DOUBLE* CDF;	// 累计分布函数
-private:
-	INT* EQU;	// 均衡化映射
-
 public:
 	DIB();	// 构造函数
 	~DIB(); // 析构函数
 
 	void read(const CString& fileName);		// 读取位图文件
 	void write(const CString& fileName);	// 写入位图文件
-	void equalizated();	// 均衡化
-	void standardized(DOUBLE * target);	// 规格化
-	void getExtVal(DOUBLE * arr);
+
+// 这部分是图像均衡化和规格化
+public:
+	UINT8 maxp; // 最大像素点值
+	UINT8 minp; // 最小像素点值
+	void getExtVal(); // 获取极值
+
+// 彩色图像dft变换
+public:
+	void FDFT(fftw_complex* in, fftw_complex* out);
+	void FIDFT(fftw_complex* rin, fftw_complex* rout);
+
+	void DFTShift(fftw_complex* out, fftw_complex* out_shift);
+	void Magnitude(fftw_complex* out, BYTE* mag);
+
+	// 滤波
+	void RectFilter(fftw_complex* out, int len, int flag);
 };
 
