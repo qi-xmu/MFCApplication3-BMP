@@ -141,7 +141,7 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	for (int i = 0; i < size; i++) {
 		double tmp = sqrt(pow(rfout[i][0], 2) + pow(rfout[i][1], 2));
 		fnew_img[i] = tmp / size;
-		if (fnew_img[i] > dib->maxp) fnew_img[i] -= dib->maxp;
+		if (fnew_img[i] >= dib->maxp) fnew_img[i] -= dib->maxp;
 	}
 	// 显示重新变化生成的图像
 	printBmp_8(pDC, fnew_img,

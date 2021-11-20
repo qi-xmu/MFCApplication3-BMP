@@ -85,18 +85,10 @@ void DIB::getExtVal()
 void DIB::FDFT(fftw_complex* in, fftw_complex* out)
 {
 	int size = bheight * bwidth;
-	//for (int i = 0; i < size; i++) {
-	//	in[i++][0] = (double)(UINT)ph[i++];
-	//}
-	int i = 0;
-	for (int y = 0; y < bheight; y++) {
-		for (int x = 0; x < bwidth; x++) {
-			BYTE index = ph[x + y * bwidth];
-			in[i++][0] = index;
-		}
+	for (int i = 0; i < size; i++) {
+		in[i][0] = (double)ph[i];
 	}
-	fftw_plan p;
-	p = fftw_plan_dft_2d(bheight, bwidth, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+	fftw_plan p = fftw_plan_dft_2d(bheight, bwidth, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 	fftw_execute(p);
 }
 
@@ -115,22 +107,8 @@ void DIB::DFTShift(fftw_complex* out, fftw_complex* out_shift)
 	int x, y;
 	for (int i = 0; i < bheight; i++) {
 		for (int j = 0; j < bwidth; j++) {
-			if (i < bheight / 2) {
-				if (j < bwidth / 2)
-					//第一块 <-- 4
-					x = j + b, y = i + a;
-				else
-					//第二块 <-- 3
-					x = j - b, y = i + a;
-			}
-			else {
-				if (j < bwidth / 2)
-					//第三快 <-- 2
-					x = j + b, y = i - a;
-				else
-					//第四块 <-- 1
-					x = j - b, y = i - a;
-			}
+			(i < a) ? (y = i + a) : (y = i - a);
+			(j < b) ? (x = j + b) : (x = j - b);
 			memcpy(out_shift[j + i * bwidth], out[x + y * bwidth], sizeof(fftw_complex));
 		}
 	}
@@ -153,7 +131,7 @@ void DIB::RectFilter(fftw_complex* out, int len, int flag)
 	int hc = bheight >> 1;
 	int lc = len >> 1;
 	if (flag == 0) {
-		// 过滤高通
+		// 高通过滤
 		for (int i = hc - lc; i < hc + lc; i++) {
 			for (int j = wc - lc; j < wc + lc; j++) {
 				memset(out[j + i * bwidth], 0, sizeof(fftw_complex));
@@ -161,10 +139,11 @@ void DIB::RectFilter(fftw_complex* out, int len, int flag)
 		}
 	}
 	else {
-		// 反向过滤低通
+		// 反向低通过滤
 		for (int i = 0; i < bheight ; i++) {
 			for (int j = 0; j < bwidth; j++) {
-				if ((i > hc - lc) && (i < hc + lc) && (j > wc - lc) && (j < wc + lc)) continue;
+				if (((i >= hc - lc) && (i <= hc + lc)) 
+					&& ((j >= wc - lc) && (j <= wc + lc))) continue;
 				memset(out[j + i * bwidth], 0, sizeof(fftw_complex));
 			}
 		}
