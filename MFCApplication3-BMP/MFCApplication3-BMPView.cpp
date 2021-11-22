@@ -33,6 +33,16 @@ BEGIN_MESSAGE_MAP(CMFCApplication3BMPView, CView)
 END_MESSAGE_MAP()
 
 
+// 显示 图像指针 图像宽度 图像长度 绘制位置x y
+void CMFCApplication3BMPView::printBmp_24(CDC* pDC, BYTE* p, int w, int h, int x, int y)
+{
+	for (int i = 0; i < h; i++) {
+		for (int j = 0; j < w; j++) {
+			UINT8* head = &p[j + 3 * i * w];
+			pDC->SetPixelV(x + j, h + y - i - 1, RGB(head[2], head[1], head[0]));
+		}
+	}
+}
 
 // 显示 图像指针 图像宽度 图像长度 绘制位置x y
 void CMFCApplication3BMPView::printBmp_8(CDC* pDC, BYTE* p, int w, int h, int x , int y)
@@ -83,7 +93,14 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	if (dib == NULL) {
 		return;
 	}
+	/* 24位图像 */
+	if (dib->bih->biBitCount == 24) {
+		printBmp_24(pDC, dib->bdata, dib->bwidth, dib->bheight, 0, 0);
+		return;
+	}
 
+
+	/* 8位图像实现 */
 	// 原图绘制
 	printBmp_8(pDC, dib->ph, dib->bwidth, dib->bheight, 10, 10);
 
@@ -119,7 +136,9 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 		30 + 2*dib->bwidth, 10);
 
 	// 下面进行滤波， 这里按照矩形进行截取out_shift
-	dib->RectFilter(out_shift,180, 1);
+	// 滤波说明：当最后一位为0，对应高通滤波， 最后一位为1时对应低通滤波。
+	dib->RectFilter(out_shift,20, 1);  
+
 	// 显示滤波效果
 	BYTE* fmag = (BYTE*)malloc(sizeof(BYTE) * size);
 	dib->Magnitude(out_shift, fmag);
@@ -135,6 +154,7 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	// 进行反变换rfout
 	fftw_complex* rfout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
 	dib->FIDFT(fout, rfout);
+
 	// 重新生成图形fnew_img
 	BYTE* fnew_img = (BYTE*)malloc(sizeof(BYTE) * size);
 	//dib->Magnitude(rfout, fnew_img);

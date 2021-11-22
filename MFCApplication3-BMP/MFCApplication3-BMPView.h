@@ -16,6 +16,7 @@ private:
 	DIB *dib;
 
 private:
+	void printBmp_24(CDC* pDC, BYTE* p, int w, int  h, int x, int y);
 	void printBmp_8(CDC* pDC, BYTE* p, int w, int  h, int x, int y);
 
 protected: // 仅从序列化创建
