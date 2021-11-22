@@ -38,7 +38,7 @@ void CMFCApplication3BMPView::printBmp_24(CDC* pDC, BYTE* p, int w, int h, int x
 {
 	for (int i = 0; i < h; i++) {
 		for (int j = 0; j < w; j++) {
-			UINT8* head = &p[j + 3 * i * w];
+			UINT8* head = &p[j * 3 + 3 * i * w];
 			pDC->SetPixelV(x + j, h + y - i - 1, RGB(head[2], head[1], head[0]));
 		}
 	}
