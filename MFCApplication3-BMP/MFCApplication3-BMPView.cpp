@@ -93,14 +93,85 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	if (dib == NULL) {
 		return;
 	}
-	/* 24位图像 */
+	/* Coded by qi 2021.11.22
+	 * 24位图像实现 */
 	if (dib->bih->biBitCount == 24) {
-		printBmp_24(pDC, dib->bdata, dib->bwidth, dib->bheight, 0, 0);
+		int size = dib->bwidth * dib->bheight;
+		// 绘制原图
+		printBmp_24(pDC, dib->ph, dib->bwidth, dib->bheight, 0, 0);
+		// 傅里叶变换尝试
+		fftw_complex *in, *out;
+		in = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
+		out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
+		// 将值放入in中
+		for (int i = 0; i < 3 * size; i++) {
+			in[i][0] = dib->ph[i];
+		}
+		fftw_plan p = fftw_plan_dft_3d(dib->bheight, dib->bwidth, 3, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+		fftw_execute(p);
+
+		// fft3 shift
+		int w = dib->bwidth, h = dib->bheight;
+		int hc = h >> 1, wc = w >> 1;
+		int x, y;
+		fftw_complex* out_shift = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
+		for (int k = 0; k < 3; k++) {
+			for (int i = 0; i < h; i++) {
+				for (int j = 0; j < w; j++) {
+					(i < hc) ? (y = i + hc) : (y = i - hc);
+					(j < wc) ? (x = j + wc) : (x = j - wc);
+					memcpy(out_shift[3 * j + k + 3 * i * w], out[3 * x + k + 3 * y * w], sizeof(fftw_complex));
+				}
+			}
+		}
+		
+		// 归一
+		BYTE* mag3 = (BYTE*)fftw_malloc(sizeof(BYTE) * size * 3);
+		for (int i = 0; i < 3 * size; i++) {
+			double tmp = sqrt(pow(out_shift[i][0], 2) + pow(out_shift[i][1], 2));
+			tmp = 20 * log(tmp);
+			if (tmp > 255) tmp = 255;
+			mag3[i] = (BYTE)tmp;
+		}
+		printBmp_24(pDC, mag3, dib->bwidth, dib->bheight, 0, 0);
+		
+		// 滤波
+		int lc = 30 >> 1;
+		for (int k = 0; k < 3; k++) {
+			for (int i = 0; i < h; i++) {
+				for (int j = 0; j < w; j++) {
+					if (((i >= hc - lc) && (i <= hc + lc))
+						&& ((j >= wc - lc) && (j <= wc + lc))) continue;
+					memset(out_shift[3 * j + k + 3 * i * w], 0, sizeof(fftw_complex));
+				}
+			}
+		}
+		for (int i = 0; i < 3 * size; i++) {
+			double tmp = sqrt(pow(out_shift[i][0], 2) + pow(out_shift[i][1], 2));
+			tmp = 20 * log(tmp);
+			if (tmp > 255) tmp = 255;
+			mag3[i] = (BYTE)tmp;
+		}
+		printBmp_24(pDC, mag3, dib->bwidth, dib->bheight, 0, 0);
+
+
+		// 傅里叶逆变换
+		fftw_complex* fout= (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
+		fftw_plan ip = fftw_plan_dft_3d(dib->bheight, dib->bwidth, 3, out_shift, fout, FFTW_BACKWARD, FFTW_ESTIMATE);
+		fftw_execute(ip);
+		for (int i = 0; i < 3 * size; i++) {
+			double tmp = sqrt(pow(fout[i][0], 2) + pow(fout[i][1], 2));
+			tmp = tmp / size;
+			mag3[i] = (BYTE)tmp;
+		}
+		printBmp_24(pDC, mag3, dib->bwidth, dib->bheight, 0, 0);
 		return;
 	}
 
 
-	/* 8位图像实现 */
+	/* Coded by qi
+	 * 8位图像实现 */
+
 	// 原图绘制
 	printBmp_8(pDC, dib->ph, dib->bwidth, dib->bheight, 10, 10);
 
@@ -161,7 +232,6 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	for (int i = 0; i < size; i++) {
 		double tmp = sqrt(pow(rfout[i][0], 2) + pow(rfout[i][1], 2));
 		fnew_img[i] = tmp / size;
-		if (fnew_img[i] > dib->maxp) fnew_img[i] -= dib->maxp;
 	}
 	// 显示重新变化生成的图像
 	printBmp_8(pDC, fnew_img,
