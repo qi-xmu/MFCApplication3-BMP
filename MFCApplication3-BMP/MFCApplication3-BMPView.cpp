@@ -93,150 +93,68 @@ void CMFCApplication3BMPView::OnDraw(CDC* pDC)
 	if (dib == NULL) {
 		return;
 	}
+
+	int h = dib->bheight;
+	int w = dib->bwidth;
+	BYTE* ph = dib->ph;
+	double* kernel = dib->conv3_3; // 卷积核
+
 	/* Coded by qi 2021.11.22
 	 * 24位图像实现 */
 	if (dib->bih->biBitCount == 24) {
-		int size = dib->bwidth * dib->bheight;
-		// 绘制原图
-		printBmp_24(pDC, dib->ph, dib->bwidth, dib->bheight, 0, 0);
-		// 傅里叶变换尝试
-		fftw_complex *in, *out;
-		in = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
-		out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
-		// 将值放入in中
-		for (int i = 0; i < 3 * size; i++) {
-			in[i][0] = dib->ph[i];
-		}
-		fftw_plan p = fftw_plan_dft_3d(dib->bheight, dib->bwidth, 3, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-		fftw_execute(p);
+		// 原图绘制
+		printBmp_24(pDC, ph, w, h, 0, 0);
 
-		// fft3 shift
-		int w = dib->bwidth, h = dib->bheight;
-		int hc = h >> 1, wc = w >> 1;
-		int x, y;
-		fftw_complex* out_shift = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
-		for (int k = 0; k < 3; k++) {
-			for (int i = 0; i < h; i++) {
-				for (int j = 0; j < w; j++) {
-					(i < hc) ? (y = i + hc) : (y = i - hc);
-					(j < wc) ? (x = j + wc) : (x = j - wc);
-					memcpy(out_shift[3 * j + k + 3 * i * w], out[3 * x + k + 3 * y * w], sizeof(fftw_complex));
+		BYTE* nip = (BYTE*)malloc(3 * w * h * sizeof(UINT));
+		for (int i = 0; i < h; i++) {
+			for (int j = 0; j < w; j++) {
+				for (int k = 0; k < 3; k++) {
+					nip[k + 3 * j + i * w * 3] = (BYTE)dib->conv(i, k + 3 * j, kernel, 3);
 				}
 			}
 		}
-		
-		// 归一
-		BYTE* mag3 = (BYTE*)fftw_malloc(sizeof(BYTE) * size * 3);
-		for (int i = 0; i < 3 * size; i++) {
-			double tmp = sqrt(pow(out_shift[i][0], 2) + pow(out_shift[i][1], 2));
-			tmp = 20 * log(tmp);
-			if (tmp > 255) tmp = 255;
-			mag3[i] = (BYTE)tmp;
-		}
-		printBmp_24(pDC, mag3, dib->bwidth, dib->bheight, 0, 0);
-		
-		// 滤波
-		int lc = 30 >> 1;
-		for (int k = 0; k < 3; k++) {
-			for (int i = 0; i < h; i++) {
-				for (int j = 0; j < w; j++) {
-					if (((i >= hc - lc) && (i <= hc + lc))
-						&& ((j >= wc - lc) && (j <= wc + lc))) continue;
-					memset(out_shift[3 * j + k + 3 * i * w], 0, sizeof(fftw_complex));
-				}
-			}
-		}
-		for (int i = 0; i < 3 * size; i++) {
-			double tmp = sqrt(pow(out_shift[i][0], 2) + pow(out_shift[i][1], 2));
-			tmp = 20 * log(tmp);
-			if (tmp > 255) tmp = 255;
-			mag3[i] = (BYTE)tmp;
-		}
-		printBmp_24(pDC, mag3, dib->bwidth, dib->bheight, 0, 0);
-
-
-		// 傅里叶逆变换
-		fftw_complex* fout= (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size * 3);
-		fftw_plan ip = fftw_plan_dft_3d(dib->bheight, dib->bwidth, 3, out_shift, fout, FFTW_BACKWARD, FFTW_ESTIMATE);
-		fftw_execute(ip);
-		for (int i = 0; i < 3 * size; i++) {
-			double tmp = sqrt(pow(fout[i][0], 2) + pow(fout[i][1], 2));
-			tmp = tmp / size;
-			mag3[i] = (BYTE)tmp;
-		}
-		printBmp_24(pDC, mag3, dib->bwidth, dib->bheight, 0, 0);
-		return;
+		printBmp_24(pDC, nip, w, h, w, 0);
 	}
-
-
 	/* Coded by qi
 	 * 8位图像实现 */
+	if (dib->bih->biBitCount == 8) {
+		// 原图绘制
+		printBmp_8(pDC, ph, w, h, 0, 0);
+		
+		dib->gauConvKerlGen(1.5);
+		// 高斯滤波
+		BYTE* nip = (BYTE*)malloc(w * h * sizeof(UINT));
+		for (int i = 0; i < h; i++) {
+			for (int j = 0; j < w; j++) {
+				// 卷积核卷积
+				nip[j + i * w] = (BYTE)dib->conv(i, j, kernel, 1);
+			}
+		}
+		printBmp_8(pDC, nip, w, h, w, 0);
 
-	// 原图绘制
-	printBmp_8(pDC, dib->ph, dib->bwidth, dib->bheight, 10, 10);
+		// 中值滤波
+		BYTE* mip3 = (BYTE*)malloc(w * h * sizeof(UINT));
+		for (int i = 0; i < h; i++) {
+			for (int j = 0; j < w; j++) {
+				// 卷积核卷积
+				mip3[j + i * w] = (BYTE)dib->median(i, j, 3, 1);
+			}
+		}
+		printBmp_8(pDC, mip3, w, h, 2*w, 0);
 
-	// 输出傅里叶变换结果
-	int size = dib->bheight * dib->bwidth; // 图像大小
-	fftw_complex* in, * out;
-	in = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
-	out = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
-	dib->FDFT(in, out);
-	// 这里需要进行fftshift才能正常显示最终的傅里叶图像,重新开辟一个区域进行
-	fftw_complex *out_shift = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
+		BYTE* mip5 = (BYTE*)malloc(w * h * sizeof(UINT));
+		for (int i = 0; i < h; i++) {
+			for (int j = 0; j < w; j++) {
+				// 卷积核卷积
+				mip5[j + i * w] = (BYTE)dib->median(i, j, 5, 1);
+			}
+		}
+		printBmp_8(pDC, mip5, w, h, 3*w, 0);
 
-	dib->DFTShift(out, out_shift);
-	
-	// 这里转换成图像格式
-	BYTE* mag = (BYTE*)malloc(sizeof(BYTE) * size);
-	dib->Magnitude(out_shift, mag);
-	// 显示变换后的频谱图
-	printBmp_8(pDC, mag,
-		dib->bwidth, dib->bheight, 
-		20+dib->bwidth, 10);
-
-	// 这里进行傅里叶反变换
-	fftw_complex *rout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
-	dib->FIDFT(out, rout);
-	BYTE* new_img = (BYTE*)malloc(sizeof(BYTE) * size);
-	// 显示重新变化生成的图像
-	for (int i = 0; i < size; i++) {
-		new_img[i] = rout[i][0] / size;
+		//dib->ph = nip;
+		//delete ph;
 	}
-	printBmp_8(pDC, new_img,
-		dib->bwidth, dib->bheight,
-		30 + 2*dib->bwidth, 10);
 
-	// 下面进行滤波， 这里按照矩形进行截取out_shift
-	// 滤波说明：当最后一位为0，对应高通滤波， 最后一位为1时对应低通滤波。
-	dib->RectFilter(out_shift,20, 1);  
-
-	// 显示滤波效果
-	BYTE* fmag = (BYTE*)malloc(sizeof(BYTE) * size);
-	dib->Magnitude(out_shift, fmag);
-	printBmp_8(pDC, fmag,
-		dib->bwidth, dib->bheight,
-		40 + 3 * dib->bwidth, 10);
-
-	// 滤波后变换回来 fout
-	fftw_complex* fout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
-	dib->DFTShift(out_shift, fout);
-
-	dib->getExtVal();
-	// 进行反变换rfout
-	fftw_complex* rfout = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size);
-	dib->FIDFT(fout, rfout);
-
-	// 重新生成图形fnew_img
-	BYTE* fnew_img = (BYTE*)malloc(sizeof(BYTE) * size);
-	//dib->Magnitude(rfout, fnew_img);
-	for (int i = 0; i < size; i++) {
-		double tmp = sqrt(pow(rfout[i][0], 2) + pow(rfout[i][1], 2));
-		fnew_img[i] = tmp / size;
-	}
-	// 显示重新变化生成的图像
-	printBmp_8(pDC, fnew_img,
-		dib->bwidth, dib->bheight,                    
-		50 + 4 * dib->bwidth, 10);
 }
 
 

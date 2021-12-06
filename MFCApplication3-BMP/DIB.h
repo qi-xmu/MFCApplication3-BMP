@@ -32,6 +32,9 @@ struct RGBQuad {
 
 
 #include <fftw3.h>
+#include <algorithm>
+
+#define PI 3.1415926535
 
 // DIB类
 class DIB
@@ -70,5 +73,21 @@ public:
 
 	// 滤波
 	void RectFilter(fftw_complex* out, int len, int flag);
+
+// 图像卷积
+public:
+	// 卷积核
+	double conv3_3[9];
+
+
+private:
+	double gauss(int x, int y, double rou);
+public:
+	// 高斯卷积核生成
+	void gauConvKerlGen(double rou = 10);
+	// 卷积
+	double conv(int i, int j, double* kernel, int dim);
+
+	BYTE median(int i, int j, int kd, int dim);
 };
 

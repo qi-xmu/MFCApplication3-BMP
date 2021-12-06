@@ -15,13 +15,16 @@ DIB::DIB() {
 	bih = NULL;
 	quad = NULL;
 	bdata = NULL;
+
+	// 生成卷积核 均值卷积
+	gauConvKerlGen();
+
 }
 DIB::~DIB() {
 	delete[] bdata;
 	ph = NULL;
 	bfh = NULL;
 	bih = NULL;
-
 
 	quad = NULL;
 	bdata = NULL;
@@ -150,5 +153,59 @@ void DIB::RectFilter(fftw_complex* out, int len, int flag)
 	}
 }
 
+double DIB::gauss(int x, int y, double rou)
+{
+	double r2 = 2 * rou * rou;
+	double k = (PI * r2);
+	double t = -(x * x + y * y) / r2;
+ 	return exp(t) / k;
+}
+
+void DIB::gauConvKerlGen(double rou) {
+	double sum = 0; 
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			conv3_3[i + 3 * j] = gauss(i - 1, 1 - j, rou);
+			sum += conv3_3[i + 3 * j];
+		}
+	}
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			conv3_3[i + 3 * j] *= (1.0 / sum);
+		}
+	}
+}
+
+double DIB::conv(int i, int j, double* kernel, int dim) {
+	double res = 0;
+	int kd = 3;
+	for (int a = 0; a < kd; a++) {
+		for (int b = 0; b < kd; b++) {
+			int x = j + dim * (b - kd / 2), y = i + (a - kd / 2); // 计算相对坐标
+			UINT index = 0;
+			// 限定范围，否则为0
+			if (x >= 0 && x < (bwidth * dim) && y >= 0 && y < bheight) {
+				index = ph[x + y * bwidth * dim];
+			}
+			res += (index * kernel[b + kd * a]);
+		}
+	}
+	return res;
+}
+
+BYTE DIB::median(int i, int j, int kd, int dim)
+{
+	BYTE arr[25] = { 0 };
+	for (int a = 0; a < kd; a++) {
+		for (int b = 0; b < kd; b++) {
+			int x = j + b - kd / 2, y = i + a - kd / 2;
+			if (x >= 0 && x < bwidth && y >= 0 && y < bheight) {
+				arr[b + kd * a] = ph[x + y * bheight];
+			}
+		}
+	}
+	std::sort(arr, arr + kd * kd);
+	return arr[5];
+}
 
 
